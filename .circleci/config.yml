@@ -482,10 +482,10 @@ workflows:
             - setup
 
       - publish:
-    context: org-global
-    filters:
-      branches:
-        only: test/docker-image-signing
-    requires:
-      - setup
-      - build
+          context: org-global
+          filters:
+            branches:
+              only: test/docker-image-signing
+          requires:
+            - setup
+            - build
