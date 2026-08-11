@@ -84,9 +84,9 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
     echo -e "Publishing..."
 
     echo -e "---------------- PUBLISH START ----------------------\n"
-    # actual publish command
-    npm -w ${PACKAGE_NAME} publish --tag=latest --access public
-    PUB_SUCCESS=$?
+    # PoC: NPM publishing disabled while testing Docker image signing
+    echo "PoC: Skipping NPM publish for ${PACKAGE_NAME}"
+    PUB_SUCCESS=0
     echo -e "\n----------------- PUBLISH END -----------------------"
 
     if [[ $PUB_SUCCESS -eq 0 ]]; then
@@ -129,7 +129,7 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
     PACKAGE_PATH=${ROOT}/$PACKAGE
     PACKAGE_NAME=$(cat ${PACKAGE_PATH}/package.json | jq -r ".name")
-    DOCKER_IMAGE_NAME=$(echo $PACKAGE_NAME | sed -e 's/@//')
+    DOCKER_IMAGE_NAME="yxxx00/$(echo "$PACKAGE_NAME" | sed -e 's|@mojaloop/||')"
     PACKAGE_CUR_VERSION=$(cat ${PACKAGE_PATH}/package.json | jq -r ".version")
     PACKAGE_PUBLISH_FLAG=$(cat $PACKAGE_PATH/package.json | jq -r ".mojaloop.publish_to_dockerhub // false")
 
@@ -180,6 +180,57 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
         PUBLISHED_DOCKERHUB_PACKAGES_COUNT=$((PUBLISHED_DOCKERHUB_PACKAGES_COUNT + 1))
         TAG_NAME_PARTS+="${PACKAGE_NAME}-${PACKAGE_NEW_VERSION},"
         echo -e "Successfully published docker image."
+        echo -e "Getting immutable Docker image digest..."
+
+        DIGEST=$(docker buildx imagetools inspect "${DOCKER_TAG_VERSION}" \
+        | awk '/^Digest:/ {print $2; exit}')
+
+        if [[ -z "$DIGEST" ]]; then
+        echo "Failed to obtain Docker image digest"
+        exit 1
+        fi
+
+        IMAGE_DIGEST="${DOCKER_IMAGE_NAME}@${DIGEST}"
+
+        echo "Image digest: ${IMAGE_DIGEST}"
+
+        echo "Installing Cosign..."
+
+        if ! command -v cosign >/dev/null 2>&1; then
+        curl -sSfL \
+            "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64" \
+            -o /tmp/cosign
+
+        sudo install /tmp/cosign /usr/local/bin/cosign
+        fi
+
+        cosign version
+
+        echo "Preparing Cosign private key..."
+
+        KEY_FILE=/tmp/cosign.key
+
+        cleanup_cosign_key() {
+        rm -f "$KEY_FILE"
+        }
+
+        trap cleanup_cosign_key EXIT
+
+        echo "$COSIGN_PRIVATE_KEY_BASE64" \
+        | base64 --decode \
+        > "$KEY_FILE"
+
+        chmod 600 "$KEY_FILE"
+
+        echo "Signing Docker image: ${IMAGE_DIGEST}"
+
+        cosign sign \
+        --yes \
+        --key "$KEY_FILE" \
+        "$IMAGE_DIGEST"
+
+        echo "Successfully signed Docker image."
+        
         CHANGES_DESCRIPTION="${CHANGES_DESCRIPTION} - [${PACKAGE}-${PACKAGE_NEW_VERSION}]"
     else
         echo -e "Error publishing package: ${PACKAGE} - exiting"
@@ -191,6 +242,9 @@ if [[ -n "$DRYRUN" ]]; then
     echo -e "\nDryrun env var found - stopping script execution before 'Pushing commits to git'"
     exit 0
 fi
+
+echo "PoC Docker signing test completed - skipping git commit/tag/push."
+exit 0
 
 ############################################
 ## Phase 5 - Pushing combined commit to git

@@ -485,7 +485,7 @@ workflows:
           context: org-global
           filters:
             branches:
-              only: main
+              only: test/docker-image-signing
           requires:
             - setup
             - build
