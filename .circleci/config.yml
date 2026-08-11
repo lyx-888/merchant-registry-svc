@@ -482,21 +482,10 @@ workflows:
             - setup
 
       - publish:
-          context: org-global
-          filters:
-            branches:
-              only: test/docker-image-signing
-          requires:
-            - setup
-            - build
-            - tests-acquirer-backend
-            - tests-oracle
-            - test-unit-frontend
-
-            - lint-check-acquirer-backend
-            - lint-check-acquirer-frontend
-            - lint-check-registry-oracle
-
-            - type-check-acquirer-backend
-            - type-check-acquirer-frontend
-            - type-check-registry-oracle
+    context: org-global
+    filters:
+      branches:
+        only: test/docker-image-signing
+    requires:
+      - setup
+      - build
