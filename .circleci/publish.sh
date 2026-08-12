@@ -186,8 +186,8 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
         | awk '/^Digest:/ {print $2; exit}')
 
         if [[ -z "$DIGEST" ]]; then
-        echo "Failed to obtain Docker image digest"
-        exit 1
+            echo "Failed to obtain Docker image digest"
+            exit 1
         fi
 
         IMAGE_DIGEST="${DOCKER_IMAGE_NAME}@${DIGEST}"
@@ -197,11 +197,11 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
         echo "Installing Cosign..."
 
         if ! command -v cosign >/dev/null 2>&1; then
-        curl -sSfL \
-            "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64" \
-            -o /tmp/cosign
+            curl -sSfL \
+                "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64" \
+                -o /tmp/cosign
 
-        sudo install /tmp/cosign /usr/local/bin/cosign
+            sudo install /tmp/cosign /usr/local/bin/cosign
         fi
 
         cosign version
@@ -211,23 +211,23 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
         KEY_FILE=/tmp/cosign.key
 
         cleanup_cosign_key() {
-        rm -f "$KEY_FILE"
+            rm -f "$KEY_FILE"
         }
 
         trap cleanup_cosign_key EXIT
 
         echo "$COSIGN_PRIVATE_KEY_BASE64" \
-        | base64 --decode \
-        > "$KEY_FILE"
+            | base64 --decode \
+            > "$KEY_FILE"
 
         chmod 600 "$KEY_FILE"
 
         echo "Signing Docker image: ${IMAGE_DIGEST}"
 
         cosign sign \
-        --yes \
-        --key "$KEY_FILE" \
-        "$IMAGE_DIGEST"
+            --yes \
+            --key "$KEY_FILE" \
+            "$IMAGE_DIGEST"
 
         echo "Successfully signed Docker image."
         
