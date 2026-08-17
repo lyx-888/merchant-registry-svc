@@ -197,7 +197,7 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
         echo "Installing Cosign..."
 
         if ! command -v cosign >/dev/null 2>&1; then
-            curl -sSfL \
+            curl --proto '=https' --tlsv1.2 -sSfL \
                 "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64" \
                 -o /tmp/cosign
 
