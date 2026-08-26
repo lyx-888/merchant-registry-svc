@@ -118,7 +118,6 @@ echo -e "  Create docker builder, bootstrap it and use it..."
 docker buildx create --name mybuilder --use --bootstrap
 docker buildx ls
 
-
 echo -e "\nGoing to build and publish ${PACKAGES_TO_PUBLISH_TO_DOCKER_COUNT} package(s)..."
 
 SHORT_GIT_HASH=$(echo $CIRCLE_SHA1 | cut -c -7)
@@ -132,7 +131,6 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
     DOCKER_IMAGE_NAME="yxxx00/$(echo "$PACKAGE_NAME" | sed -e 's|@mojaloop/||')"
     PACKAGE_CUR_VERSION=$(cat ${PACKAGE_PATH}/package.json | jq -r ".version")
     PACKAGE_PUBLISH_FLAG=$(cat $PACKAGE_PATH/package.json | jq -r ".mojaloop.publish_to_dockerhub // false")
-
 
     echo -e "\tName: \t\t${PACKAGE_NAME}"
     echo -e "\tCur version: \t${PACKAGE_CUR_VERSION}"
@@ -157,7 +155,6 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
     echo -e "\tCommit Tag: \t${DOCKER_TAG_SHORT_GIT_HASH}"
     echo -e "\tRelease Tag: \t${DOCKER_TAG_LATEST_RELEASE}"
 
-
     if [[ -n "$DRYRUN" ]]; then
         echo -e "\nDryrun env var found - not actually building and publishing docker image"
         continue
@@ -173,6 +170,7 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
         -f ${PACKAGE_PATH}/Dockerfile \
         -t ${DOCKER_TAG_VERSION} -t ${DOCKER_TAG_SHORT_GIT_HASH} -t ${DOCKER_TAG_LATEST_RELEASE} \
         .
+
     BUILD_AND_PUB_SUCCESS=$?
     echo -e "\n---------------- DOCKER BUILD AND PUBLISH END ----------------------"
 
@@ -208,7 +206,11 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
         echo "Downloading Cosign bootstrap ${BOOTSTRAP_VERSION}..."
 
-        curl --retry 3 -fsSL \
+        curl --retry 3 \
+            --proto '=https' \
+            --proto-redir '=https' \
+            --tlsv1.2 \
+            -fsSL \
             "https://github.com/sigstore/cosign/releases/download/${BOOTSTRAP_VERSION}/cosign-linux-amd64" \
             -o "${WORKDIR}/cosign-bootstrap"
 
@@ -228,13 +230,21 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
         echo "Downloading Cosign ${COSIGN_VERSION}..."
 
-        curl --retry 3 -fsSL \
+        curl --retry 3 \
+            --proto '=https' \
+            --proto-redir '=https' \
+            --tlsv1.2 \
+            -fsSL \
             "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64" \
             -o "${WORKDIR}/cosign"
 
         echo "Downloading Cosign release public key..."
 
-        curl --retry 3 -fsSL \
+        curl --retry 3 \
+            --proto '=https' \
+            --proto-redir '=https' \
+            --tlsv1.2 \
+            -fsSL \
             "https://raw.githubusercontent.com/sigstore/cosign/${COSIGN_VERSION}/release/release-cosign.pub" \
             -o "${WORKDIR}/release-cosign.pub"
 
@@ -252,7 +262,11 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
         echo "Verifying Cosign keyless Sigstore bundle..."
 
-        curl --retry 3 -fsSL \
+        curl --retry 3 \
+            --proto '=https' \
+            --proto-redir '=https' \
+            --tlsv1.2 \
+            -fsSL \
             "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64.sigstore.json" \
             -o "${WORKDIR}/cosign-linux-amd64.sigstore.json"
 
@@ -266,7 +280,11 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
         echo "Verifying Cosign KMS-backed Sigstore bundle..."
 
-        curl --retry 3 -fsSL \
+        curl --retry 3 \
+            --proto '=https' \
+            --proto-redir '=https' \
+            --tlsv1.2 \
+            -fsSL \
             "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64-kms.sigstore.json" \
             -o "${WORKDIR}/cosign-linux-amd64-kms.sigstore.json"
 
@@ -331,6 +349,7 @@ printHeader "Phase 5 - Pushing single combined commit and tag to git"
 
 # Stage all changes
 git add -A
+
 # Commit with a combined message
 COMMIT_MESSAGE="[ci skip] auto commit for packages - ${CHANGES_DESCRIPTION}"
 git commit --no-verify -m "$COMMIT_MESSAGE"
