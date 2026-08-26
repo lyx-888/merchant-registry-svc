@@ -1,4 +1,3 @@
-```bash
 #!/bin/bash
 #set -x
 
@@ -359,4 +358,4 @@ fi
 TOTAL_PUBLISHED_COUNT=$((PUBLISHED_NPM_PACKAGES_COUNT + PUBLISHED_DOCKERHUB_PACKAGES_COUNT))
 
 echo -e "\nDONE - ${TOTAL_PUBLISHED_COUNT} package(s) were published and version changes pushed, all done."
-```
+
