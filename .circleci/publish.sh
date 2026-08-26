@@ -1,3 +1,4 @@
+```bash
 #!/bin/bash
 #set -x
 
@@ -194,15 +195,93 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
         echo "Image digest: ${IMAGE_DIGEST}"
 
-        echo "Installing Cosign..."
+        echo "Installing and verifying Cosign..."
 
-        if ! command -v cosign >/dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -sSfL \
-                "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64" \
-                -o /tmp/cosign
+        COSIGN_VERSION="v3.1.3"
 
-            sudo install /tmp/cosign /usr/local/bin/cosign
+        # Verification flow adapted from the official
+        # sigstore/cosign-installer implementation.
+        BOOTSTRAP_VERSION="v3.0.6"
+        BOOTSTRAP_SHA256="c956e5dfcac53d52bcf058360d579472f0c1d2d9b69f55209e256fe7783f4c74"
+        RELEASE_KEY_SHA256="f4cea466e5e887a45da5031757fa1d32655d83420639dc1758749b744179f126"
+
+        WORKDIR="$(mktemp -d)"
+
+        echo "Downloading Cosign bootstrap ${BOOTSTRAP_VERSION}..."
+
+        curl --retry 3 -fsSL \
+            "https://github.com/sigstore/cosign/releases/download/${BOOTSTRAP_VERSION}/cosign-linux-amd64" \
+            -o "${WORKDIR}/cosign-bootstrap"
+
+        BOOTSTRAP_ACTUAL_SHA256="$(
+            sha256sum "${WORKDIR}/cosign-bootstrap" | awk '{print $1}'
+        )"
+
+        if [[ "$BOOTSTRAP_ACTUAL_SHA256" != "$BOOTSTRAP_SHA256" ]]; then
+            echo "ERROR: Cosign bootstrap SHA256 verification failed"
+            rm -rf "$WORKDIR"
+            exit 1
         fi
+
+        chmod +x "${WORKDIR}/cosign-bootstrap"
+
+        echo "Cosign bootstrap SHA256 verified."
+
+        echo "Downloading Cosign ${COSIGN_VERSION}..."
+
+        curl --retry 3 -fsSL \
+            "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64" \
+            -o "${WORKDIR}/cosign"
+
+        echo "Downloading Cosign release public key..."
+
+        curl --retry 3 -fsSL \
+            "https://raw.githubusercontent.com/sigstore/cosign/${COSIGN_VERSION}/release/release-cosign.pub" \
+            -o "${WORKDIR}/release-cosign.pub"
+
+        RELEASE_KEY_ACTUAL_SHA256="$(
+            sha256sum "${WORKDIR}/release-cosign.pub" | awk '{print $1}'
+        )"
+
+        if [[ "$RELEASE_KEY_ACTUAL_SHA256" != "$RELEASE_KEY_SHA256" ]]; then
+            echo "ERROR: Cosign release public key SHA256 verification failed"
+            rm -rf "$WORKDIR"
+            exit 1
+        fi
+
+        echo "Cosign release public key verified."
+
+        echo "Verifying Cosign keyless Sigstore bundle..."
+
+        curl --retry 3 -fsSL \
+            "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64.sigstore.json" \
+            -o "${WORKDIR}/cosign-linux-amd64.sigstore.json"
+
+        "${WORKDIR}/cosign-bootstrap" verify-blob \
+            --certificate-identity="keyless@projectsigstore.iam.gserviceaccount.com" \
+            --certificate-oidc-issuer="https://accounts.google.com" \
+            --bundle "${WORKDIR}/cosign-linux-amd64.sigstore.json" \
+            "${WORKDIR}/cosign"
+
+        echo "Keyless Sigstore bundle verified."
+
+        echo "Verifying Cosign KMS-backed Sigstore bundle..."
+
+        curl --retry 3 -fsSL \
+            "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64-kms.sigstore.json" \
+            -o "${WORKDIR}/cosign-linux-amd64-kms.sigstore.json"
+
+        "${WORKDIR}/cosign-bootstrap" verify-blob \
+            --key "${WORKDIR}/release-cosign.pub" \
+            --bundle "${WORKDIR}/cosign-linux-amd64-kms.sigstore.json" \
+            "${WORKDIR}/cosign"
+
+        echo "KMS-backed Sigstore bundle verified."
+        echo "Cosign binary successfully verified."
+
+        sudo install "${WORKDIR}/cosign" /usr/local/bin/cosign
+
+        rm -rf "$WORKDIR"
 
         cosign version
 
@@ -230,7 +309,7 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
             "$IMAGE_DIGEST"
 
         echo "Successfully signed Docker image."
-        
+
         CHANGES_DESCRIPTION="${CHANGES_DESCRIPTION} - [${PACKAGE}-${PACKAGE_NEW_VERSION}]"
     else
         echo -e "Error publishing package: ${PACKAGE} - exiting"
@@ -280,3 +359,4 @@ fi
 TOTAL_PUBLISHED_COUNT=$((PUBLISHED_NPM_PACKAGES_COUNT + PUBLISHED_DOCKERHUB_PACKAGES_COUNT))
 
 echo -e "\nDONE - ${TOTAL_PUBLISHED_COUNT} package(s) were published and version changes pushed, all done."
+```
