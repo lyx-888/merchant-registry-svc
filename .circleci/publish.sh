@@ -302,30 +302,26 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
         cosign version
 
-        echo "Preparing Cosign private key..."
+        echo "Preparing CircleCI OIDC token for keyless signing..."
 
-        KEY_FILE=/tmp/cosign.key
+        SIGSTORE_ID_TOKEN="$(circleci run oidc get --claims '{"aud":"sigstore"}')"
 
-        cleanup_cosign_key() {
-            rm -f "$KEY_FILE"
-        }
+        if [[ -z "$SIGSTORE_ID_TOKEN" ]]; then
+            echo "ERROR: Failed to obtain CircleCI OIDC token"
+            exit 1
+        fi
 
-        trap cleanup_cosign_key EXIT
+        export SIGSTORE_ID_TOKEN
 
-        echo "$COSIGN_PRIVATE_KEY_BASE64" \
-            | base64 --decode \
-            > "$KEY_FILE"
-
-        chmod 600 "$KEY_FILE"
-
-        echo "Signing Docker image: ${IMAGE_DIGEST}"
+        echo "Signing Docker image keylessly: ${IMAGE_DIGEST}"
 
         cosign sign \
             --yes \
-            --key "$KEY_FILE" \
             "$IMAGE_DIGEST"
 
-        echo "Successfully signed Docker image."
+        unset SIGSTORE_ID_TOKEN
+
+        echo "Successfully signed Docker image using CircleCI OIDC."
 
         CHANGES_DESCRIPTION="${CHANGES_DESCRIPTION} - [${PACKAGE}-${PACKAGE_NEW_VERSION}]"
     else
