@@ -304,6 +304,9 @@ for PACKAGE in ${CHANGED_PACKAGES}; do
 
         echo "Preparing CircleCI OIDC token for keyless signing..."
 
+        echo "CircleCI environment CLI version:"
+        circleci version
+        
         SIGSTORE_ID_TOKEN="$(circleci run oidc get --claims '{"aud":"sigstore"}')"
 
         if [[ -z "$SIGSTORE_ID_TOKEN" ]]; then
